@@ -8,7 +8,7 @@ import (
 )
 
 func TestConnection(t *testing.T) {
-	magma := NewClient("https://api.amboss.space/graphql", "")
+	magma := NewClient("https://api.amboss.space/graphql", "", 2, 10)
 	hello, err := magma.Helloworld()
 	if err != nil {
 		log.Fatalf("Error. %v", err)
