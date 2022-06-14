@@ -2,6 +2,7 @@ package amboss
 
 import (
 	"context"
+	"math/rand"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 const (
 	STATUS_WAITING_APPROVAL = "WAITING_FOR_SELLER_APPROVAL"
+	STATUS_WAITING_CHANNEL  = "WAITING_FOR_CHANNEL_OPEN"
 )
 
 var (
@@ -122,7 +124,46 @@ func (c *Client) AcceptOrder(id, payreq string) error {
 	return nil
 }
 
+func (c *Client) RejectOrder(id string) error {
+	var m struct {
+		SellerRejectOrder string `graphql:"sellerRejectOrder(id: $sellerRejectOrderId)"`
+	}
+
+	variables := map[string]interface{}{
+		"sellerRejectOrderId": graphql.String(id),
+	}
+	err := c.magmaclient.Mutate(context.Background(), &m, variables)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) NotifyChannelPoint(txid, txindex string) error {
+	var m struct {
+		SellerAddTransaction string `graphql:"sellerAddTransaction(id: $sellerAddTransactionId, transaction: $transaction)"`
+	}
+
+	variables := map[string]interface{}{
+		"sellerAddTransactionId": graphql.String(txid),
+		"transaction":            graphql.String(txindex),
+	}
+	err := c.magmaclient.Mutate(context.Background(), &m, variables)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) GetWaitingOrder() (*Order, error) {
+	return c.getOrder(STATUS_WAITING_APPROVAL)
+}
+
+func (c *Client) GetWaiting2Open() (*Order, error) {
+	return c.getOrder(STATUS_WAITING_CHANNEL)
+}
+
+func (c *Client) getOrder(status string) (*Order, error) {
 	var query struct {
 		GetOfferOrders struct {
 			List []struct {
@@ -133,8 +174,7 @@ func (c *Client) GetWaitingOrder() (*Order, error) {
 			}
 		}
 		GetMempoolFees struct {
-			HalfHourFee graphql.Float
-			HourFee     graphql.Float
+			HourFee graphql.Float
 		}
 	}
 
@@ -142,8 +182,13 @@ func (c *Client) GetWaitingOrder() (*Order, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// since we iterate over, if some of the offers fails next time another can come across
+	rand.Shuffle(len(query.GetOfferOrders.List), func(i, j int) {
+		query.GetOfferOrders.List[i], query.GetOfferOrders.List[j] = query.GetOfferOrders.List[j], query.GetOfferOrders.List[i]
+	})
 	for _, order := range query.GetOfferOrders.List {
-		if order.Status == STATUS_WAITING_APPROVAL {
+		if order.Status == status {
 			amt, err := strconv.ParseInt(order.Size, 10, 64)
 			if err != nil {
 				return nil, err
