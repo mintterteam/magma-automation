@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"log"
 	"magma-automation/amboss"
 	"magma-automation/lnd"
@@ -13,7 +14,7 @@ func main() {
 	lndAddr := flag.String("addr", "localhost:10009", "the exposed LND rpc api. <IP>:<port>")
 	macaroonPath := flag.String("macaroonpath", "~/.lnd/data/chain/bitcoin/mainnet/admin.macaroon", "path/to/admin.macaroon")
 	tlsPath := flag.String("tlspath", "~/.lnd/tls.cert", "path/to/tls.cert")
-	apiToken := flag.String("tokenpath", "~/api.key", "path to a file where the amboss-space api token is stored in plaintext")
+	apiTokenPath := flag.String("tokenpath", "~/api.key", "path to a file where the amboss-space api token is stored in plaintext")
 	apiEndpoint := flag.String("apiendpoint", "https://api.amboss.space/graphql", "url of the amboss space api")
 	minFee := flag.Int("minfee", 2, "minimum fee (in sats per vByte) to pay for oppening channels")
 	maxFee := flag.Int("maxfee", 10, "maximum fee (in sats per vByte) to pay for oppening channels")
@@ -31,9 +32,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("[ERROR]: %v", err)
 	}
-
 	log.Println("[INFO]: Connected to LND!")
-	magma := amboss.NewClient(*apiEndpoint, *apiToken, *minFee, *maxFee)
+
+	token, err := ioutil.ReadFile(*apiTokenPath)
+
+	if err != nil {
+		log.Fatalf("[ERROR]: Could not read provided token file %v", err)
+	}
+
+	magma := amboss.NewClient(*apiEndpoint, strings.TrimSuffix(string(token), "\n"), *minFee, *maxFee)
 	alias, err := magma.GetAlias(info.IdentityPubkey)
 	if err != nil {
 		log.Fatalf("[ERROR]: %v", err)
@@ -41,7 +48,7 @@ func main() {
 	if alias != info.Alias {
 		log.Fatalf("[ERROR]: LND alias %s different from magma alias %s", info.Alias, alias)
 	}
-	log.Println("Connected to Amboss!")
+	log.Println("[INFO]: Connected to Amboss!")
 
 	for {
 		order, err := magma.GetWaitingOrder()
@@ -102,7 +109,7 @@ func main() {
 			if err := magma.NotifyChannelPoint(chanSplit[0], chanSplit[1]); err != nil {
 				log.Printf("[WARNING]: Could not notify channel opening on order no %s. %v", order.Id, err)
 			}
-			log.Printf("[INFO]: Sucessfully channel leased for %d!", int(order.Sats))
+			log.Printf("[INFO]: Sucessfully channel leased (%s) for %d!", chanPoint, int(order.Sats))
 		}
 
 		if *period <= 0 {
