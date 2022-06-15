@@ -16,21 +16,21 @@ func main() {
 	tlsPath := flag.String("tlspath", "~/.lnd/tls.cert", "path/to/tls.cert")
 	apiTokenPath := flag.String("tokenpath", "~/api.key", "path to a file where the amboss-space api token is stored in plaintext")
 	apiEndpoint := flag.String("apiendpoint", "https://api.amboss.space/graphql", "url of the amboss space api")
-	minFee := flag.Int("minfee", 2, "minimum fee (in sats per vByte) to pay for oppening channels")
-	maxFee := flag.Int("maxfee", 10, "maximum fee (in sats per vByte) to pay for oppening channels")
+	minFee := flag.Int("minfee", 2, "minimum mining fee (in sats per vByte) to pay for oppening channels")
+	maxFee := flag.Int("maxfee", 10, "maximum mining fee (in sats per vByte) to pay for oppening channels")
 	period := flag.Int("period", 0, "time to wait in seconds bewteen rounds. If <=0 then we will do one round and exit. Infinite loop otherwise")
 	rejectOnFailure := flag.Bool("rejectonfailure", false, "Flag to indicate rejecting the offer if there exists any failure. Do nothing otherwise")
 
 	flag.Parse()
 	conn, err := lnd.NewConn(*macaroonPath, *tlsPath, *lndAddr)
 	if err != nil {
-		log.Fatalf("[ERROR]: %v", err)
+		log.Fatalf("[ERROR]: Could not connect to lnd. %v", err)
 	}
 	defer conn.Close()
 	lnd := lnd.NewClient(conn)
 	info, err := lnd.GetInfo()
 	if err != nil {
-		log.Fatalf("[ERROR]: %v", err)
+		log.Fatalf("[ERROR]: Initial lnd healthcheck failed. %v", err)
 	}
 	log.Println("[INFO]: Connected to LND!")
 
@@ -43,7 +43,7 @@ func main() {
 	magma := amboss.NewClient(*apiEndpoint, strings.TrimSuffix(string(token), "\n"), *minFee, *maxFee)
 	alias, err := magma.GetAlias(info.IdentityPubkey)
 	if err != nil {
-		log.Fatalf("[ERROR]: %v", err)
+		log.Fatalf("[ERROR]: Initial amboss healthcheck failed. %v", err)
 	}
 	if alias != info.Alias {
 		log.Fatalf("[ERROR]: LND alias %s different from magma alias %s", info.Alias, alias)
@@ -53,7 +53,7 @@ func main() {
 		log.Printf("[ERROR]: Initial auth check failed. %v", err)
 	}
 	log.Println("[INFO]: Connected to Amboss!")
-
+	log.Println("[INFO]: Connected to Amboss!")
 	for {
 		order, err := magma.GetWaitingOrder()
 		if order != nil {
@@ -61,7 +61,7 @@ func main() {
 				log.Printf("[WARNING]: Could not get Magma Orders %v", err)
 			}
 			if order.FeesvByte > *maxFee {
-				log.Printf("[WARNING]: Current fees (%d) are higher than maximum fee alowed (%d)", order.FeesvByte, *maxFee)
+				log.Printf("[WARNING]: Current mining fees (%d) are higher than maximum fees alowed (%d)", order.FeesvByte, *maxFee)
 			}
 			addr, err := magma.GetNodeAddress(order.Peer)
 			if err != nil {
@@ -100,7 +100,7 @@ func main() {
 			if order.FeesvByte < *minFee {
 				order.FeesvByte = *minFee
 			} else if order.FeesvByte > *maxFee {
-				log.Printf("[WARNING]: Current fees (%d) are higher than maximum fee allowed (%d)", order.FeesvByte, *maxFee)
+				log.Printf("[WARNING]: Current mining fees (%d) are higher than maximum fees allowed (%d)", order.FeesvByte, *maxFee)
 			}
 			chanPoint, err := lnd.OpenChannel(int(order.Sats), order.FeesvByte, order.Peer)
 			if err != nil {
