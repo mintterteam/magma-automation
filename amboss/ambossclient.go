@@ -26,10 +26,11 @@ type Client struct {
 }
 
 type Order struct {
-	Id        string
-	Sats      int64
-	Peer      string
-	FeesvByte int
+	Id         string
+	ChanSize   int64
+	InvoiceAmt int64
+	Peer       string
+	FeesvByte  int
 }
 
 func NewClient(apiendpoint, token string, minfee, maxfee int) *Client {
@@ -110,7 +111,7 @@ func (c *Client) GetNodeAddress(nodeID string) (string, error) {
 
 func (c *Client) AcceptOrder(id, payreq string) error {
 	var m struct {
-		SellerAcceptOrder string `graphql:"sellerAcceptOrder(id: $sellerAcceptOrderId, request: $request)"`
+		SellerAcceptOrder bool `graphql:"sellerAcceptOrder(id: $sellerAcceptOrderId, request: $request)"`
 	}
 
 	variables := map[string]interface{}{
@@ -141,7 +142,7 @@ func (c *Client) RejectOrder(id string) error {
 
 func (c *Client) NotifyChannelPoint(txid, txindex string) error {
 	var m struct {
-		SellerAddTransaction string `graphql:"sellerAddTransaction(id: $sellerAddTransactionId, transaction: $transaction)"`
+		SellerAddTransaction bool `graphql:"sellerAddTransaction(id: $sellerAddTransactionId, transaction: $transaction)"`
 	}
 
 	variables := map[string]interface{}{
@@ -167,10 +168,11 @@ func (c *Client) getOrder(status string) (*Order, error) {
 	var query struct {
 		GetOfferOrders struct {
 			List []struct {
-				Account string
-				Id      string
-				Size    string
-				Status  string
+				Account               string
+				Id                    string
+				Size                  string
+				Status                string
+				Seller_invoice_amount string
 			}
 		}
 		GetMempoolFees struct {
@@ -189,15 +191,20 @@ func (c *Client) getOrder(status string) (*Order, error) {
 	})
 	for _, order := range query.GetOfferOrders.List {
 		if order.Status == status {
-			amt, err := strconv.ParseInt(order.Size, 10, 64)
+			size, err := strconv.ParseInt(order.Size, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			amt, err := strconv.ParseInt(order.Seller_invoice_amount, 10, 64)
 			if err != nil {
 				return nil, err
 			}
 			return &Order{
-				Id:        order.Id,
-				Sats:      amt,
-				Peer:      order.Account,
-				FeesvByte: int(query.GetMempoolFees.HourFee),
+				Id:         order.Id,
+				ChanSize:   size,
+				InvoiceAmt: amt,
+				Peer:       order.Account,
+				FeesvByte:  int(query.GetMempoolFees.HourFee),
 			}, nil
 		}
 	}
