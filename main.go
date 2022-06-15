@@ -50,76 +50,88 @@ func main() {
 	}
 	_, err = magma.GetWaitingOrder()
 	if err != nil {
-		log.Printf("[ERROR]: Initial auth check failed. %v", err)
+		log.Fatalf("[ERROR]: Initial auth check failed. %v", err)
 	}
 	log.Println("[INFO]: Connected to Amboss!")
-	log.Println("[INFO]: Connected to Amboss!")
 	for {
+		if *period > 0 {
+			time.Sleep(time.Duration(*period) * time.Second)
+		}
+
 		order, err := magma.GetWaitingOrder()
 		if order != nil {
 			if err != nil {
 				log.Printf("[WARNING]: Could not get Magma Orders %v", err)
+				continue
 			}
 			if order.FeesvByte > *maxFee {
 				log.Printf("[WARNING]: Current mining fees (%d) are higher than maximum fees alowed (%d)", order.FeesvByte, *maxFee)
+				continue
 			}
 			addr, err := magma.GetNodeAddress(order.Peer)
 			if err != nil {
 				log.Printf("[WARNING]: Could not get node address %v", err)
 				reject(*rejectOnFailure, magma, order.Id)
+				continue
 			}
 			if err := lnd.Connect(order.Peer, addr); err != nil {
 				log.Printf("[WARNING]: Could not connect to %s@%s", order.Peer, addr)
 				reject(*rejectOnFailure, magma, order.Id)
+				continue
 			}
 
-			if funds, err := lnd.AvailableFunds(); err != nil || funds < int(order.Sats) {
+			if funds, err := lnd.AvailableFunds(); err != nil || funds < int(order.ChanSize) {
 				if err != nil {
 					log.Printf("[WARNING]: Could not get funds %v", err)
 				} else {
-					log.Printf("[WARNING]: Insufficient funds (%d) to afford the lease (%d)", funds, int(order.Sats))
+					log.Printf("[WARNING]: Insufficient funds (%d) to afford the lease (%d)", funds, int(order.ChanSize))
 				}
 
 				reject(*rejectOnFailure, magma, order.Id)
+				continue
 			}
-			payreq, err := lnd.GetInvoice(int(order.Sats), 300000, "magma "+order.Id)
+			payreq, err := lnd.GetInvoice(int(order.InvoiceAmt), 300000, "magma "+order.Id)
 			if err != nil {
 				log.Printf("[WARNING]: Could not generate invoice for order %s. %v", order.Id, err)
 				reject(*rejectOnFailure, magma, order.Id)
+				continue
 			}
 			if err := magma.AcceptOrder(order.Id, payreq); err != nil {
 				log.Printf("[WARNING]: Error trying to accept order id %s. %v", order.Id, err)
 				reject(*rejectOnFailure, magma, order.Id)
+				continue
 			}
+			log.Printf("[INFO]: Accepted order . %v", err)
 		}
 		order, err = magma.GetWaiting2Open()
 		if err != nil {
 			log.Printf("[WARNING]: Could not get Magma Orders waiting for channel opening. %v", err)
+			continue
 		}
 		if order != nil {
 			if order.FeesvByte < *minFee {
 				order.FeesvByte = *minFee
 			} else if order.FeesvByte > *maxFee {
 				log.Printf("[WARNING]: Current mining fees (%d) are higher than maximum fees allowed (%d)", order.FeesvByte, *maxFee)
+				continue
 			}
-			chanPoint, err := lnd.OpenChannel(int(order.Sats), order.FeesvByte, order.Peer)
+			chanPoint, err := lnd.OpenChannel(int(order.ChanSize), order.FeesvByte, order.Peer)
 			if err != nil {
-				log.Printf("[WARNING]: Could not open channel for order %s. %v", order.Id, err)
+				log.Fatalf("[ERROR]: Could not open channel for order %s. %v", order.Id, err)
 			}
-			chanSplit := strings.Split(":", chanPoint)
+			chanSplit := strings.Split(chanPoint, ":")
 			if len(chanSplit) != 2 {
-				log.Printf("[WARNING]: Wrong chanpoint format %s", chanPoint)
+				log.Fatalf("[ERROR]: Wrong chanpoint format %s", chanPoint)
 			}
 			if err := magma.NotifyChannelPoint(chanSplit[0], chanSplit[1]); err != nil {
-				log.Printf("[WARNING]: Could not notify channel opening on order %s. %v", order.Id, err)
+				log.Fatalf("[ERROR]: Could not notify channel opening on order %s. %v", order.Id, err)
 			}
-			log.Printf("[INFO]: Sucessfully channel notification (%s). Will earn %dsats once it has over 3 confirmations.", chanPoint, int(order.Sats))
+			log.Printf("[INFO]: Sucessfully channel notification (%s). Will earn %dsats once it has over 3 confirmations.", chanPoint, int(order.InvoiceAmt))
 		}
 
 		if *period <= 0 {
 			break
 		}
-		time.Sleep(time.Duration(*period) * time.Second)
 	}
 
 }
