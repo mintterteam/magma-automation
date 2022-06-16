@@ -14,6 +14,7 @@ import (
 const (
 	STATUS_WAITING_APPROVAL = "WAITING_FOR_SELLER_APPROVAL"
 	STATUS_WAITING_CHANNEL  = "WAITING_FOR_CHANNEL_OPEN"
+	STATUS_FINISHED         = "CHANNEL_MONITORING_FINISHED"
 )
 
 var (
@@ -31,6 +32,7 @@ type Order struct {
 	InvoiceAmt int64
 	Peer       string
 	FeesvByte  int
+	ChanPoint  string
 }
 
 func NewClient(apiendpoint, token string, minfee, maxfee int) *Client {
@@ -164,6 +166,10 @@ func (c *Client) GetWaiting2Open() (*Order, error) {
 	return c.getOrder(STATUS_WAITING_CHANNEL)
 }
 
+func (c *Client) GetFinished() (*Order, error) {
+	return c.getOrder(STATUS_FINISHED)
+}
+
 func (c *Client) getOrder(status string) (*Order, error) {
 	var query struct {
 		GetOfferOrders struct {
@@ -173,6 +179,7 @@ func (c *Client) getOrder(status string) (*Order, error) {
 				Size                  string
 				Status                string
 				Seller_invoice_amount string
+				Transaction_id        string
 			}
 		}
 		GetMempoolFees struct {
@@ -199,12 +206,14 @@ func (c *Client) getOrder(status string) (*Order, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			return &Order{
 				Id:         order.Id,
 				ChanSize:   size,
 				InvoiceAmt: amt,
 				Peer:       order.Account,
 				FeesvByte:  int(query.GetMempoolFees.HourFee),
+				ChanPoint:  order.Transaction_id,
 			}, nil
 		}
 	}

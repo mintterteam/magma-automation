@@ -20,6 +20,7 @@ func main() {
 	maxFee := flag.Int("maxfee", 10, "maximum mining fee (in sats per vByte) to pay for oppening channels")
 	period := flag.Int("period", 0, "time to wait in seconds bewteen rounds. If <=0 then we will do one round and exit. Infinite loop otherwise")
 	rejectOnFailure := flag.Bool("rejectonfailure", false, "Flag to indicate rejecting the offer if there exists any failure. Do nothing otherwise")
+	closeExpired := flag.Bool("closeexpired", false, "Flag to indicate closing channels from offers that ended the lifecycle (not monitored)")
 
 	flag.Parse()
 	conn, err := lnd.NewConn(*macaroonPath, *tlsPath, *lndAddr)
@@ -57,6 +58,29 @@ func main() {
 		//If the program flow hits a continue it loops forever even if the period is 0
 		if *period > 0 {
 			time.Sleep(time.Duration(*period) * time.Second)
+		}
+
+		if *closeExpired {
+			finished, err := magma.GetFinished()
+			if err != nil {
+				log.Printf("[WARNING]: Could not get finished channels %v", err)
+			}
+			if finished != nil && finished.ChanPoint != "" {
+				open, err := lnd.IsOpened(finished.ChanPoint)
+				if err != nil {
+					log.Printf("[WARNING]: Could not check if %s is opened", finished.ChanPoint)
+				}
+				if open {
+					txid, err := lnd.CloseChannel(*minFee, finished.ChanPoint)
+					if err != nil {
+						log.Printf("[WARNING]: Could not close the expired channel %s ", finished.ChanPoint)
+					} else {
+						log.Printf("[INFO]: The channel from order %s was expired, an consequently closed in %s", finished.Id, txid)
+					}
+
+				}
+
+			}
 		}
 
 		order, err := magma.GetWaitingOrder()
@@ -117,15 +141,15 @@ func main() {
 				continue
 			}
 			//Check first if there is a pending channel oppening with the same amount to the same peer (from a previous error...)
-			chanPoint, err := lnd.OpenChannel(int(order.ChanSize), order.FeesvByte, order.Peer)
+			order.ChanPoint, err = lnd.OpenChannel(int(order.ChanSize), order.FeesvByte, order.Peer)
 			if err != nil {
 				log.Printf("[WARNING]: Could not open channel for order %s. %v", order.Id, err)
 			}
 
-			if err := magma.NotifyChannelPoint(order.Id, chanPoint); err != nil {
+			if err := magma.NotifyChannelPoint(order.Id, order.ChanPoint); err != nil {
 				log.Fatalf("[ERROR]: Could not notify channel opening on order %s. %v", order.Id, err)
 			}
-			log.Printf("[INFO]: Sucessfully channel notification (%s). Will earn %dsats once it has over 3 confirmations.", chanPoint, int(order.InvoiceAmt))
+			log.Printf("[INFO]: Sucessfully channel notification (%s). Will earn %dsats once it has over 3 confirmations.", order.ChanPoint, int(order.InvoiceAmt))
 		}
 
 		//If the program flow hits a continue it loops forever even if the period is 0 since we don't reach here unless no errors

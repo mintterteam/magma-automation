@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"time"
 
@@ -144,6 +145,70 @@ func (c *Client) OpenChannel(amt, fees int, peerId string) (string, error) {
 		break
 	}
 	return channelPoint, nil
+}
+
+func (c *Client) IsOpened(chanPoint string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	defer cancel()
+	res, err := c.lndclient.ListChannels(ctx, &lndpb.ListChannelsRequest{})
+
+	if err != nil {
+		return false, err
+	}
+
+	for _, channel := range res.GetChannels() {
+		if channel.GetChannelPoint() == chanPoint {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (c *Client) CloseChannel(fees int, chanPoint string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	defer cancel()
+	chanSplit := strings.Split(chanPoint, ":")
+	if len(chanSplit) != 2 {
+		return "", fmt.Errorf("Bad chanpoint format %s ", chanPoint)
+	}
+	index, err := strconv.ParseUint(chanSplit[1], 10, 32)
+	if err != nil {
+		return "", fmt.Errorf("Bad output index conversion %s ", chanSplit[1])
+	}
+	stream, err := c.lndclient.CloseChannel(ctx, &lndpb.CloseChannelRequest{
+		SatPerVbyte: uint64(fees),
+		ChannelPoint: &lndpb.ChannelPoint{
+			FundingTxid: &lndpb.ChannelPoint_FundingTxidStr{FundingTxidStr: chanSplit[0]},
+			OutputIndex: uint32(index),
+		},
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	TxId := ""
+
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			return "", fmt.Errorf("Get EOF while waiting for channel oppening")
+		} else if err != nil {
+			return "", err
+		}
+
+		switch update := resp.Update.(type) {
+		case *lndpb.CloseStatusUpdate_ClosePending:
+			closingHash := update.ClosePending.Txid
+			TxId = channelIdToString(closingHash)
+
+		case *lndpb.CloseStatusUpdate_ChanClose:
+			closingHash := update.ChanClose.GetClosingTxid()
+			TxId = channelIdToString(closingHash)
+		}
+		break
+	}
+	return TxId, nil
 }
 
 func getMacaroon(path string) (macaroon, error) {
