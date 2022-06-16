@@ -54,6 +54,7 @@ func main() {
 	}
 	log.Println("[INFO]: Connected to Amboss!")
 	for {
+		//If the program flow hits a continue it loops forever even if the period is 0
 		if *period > 0 {
 			time.Sleep(time.Duration(*period) * time.Second)
 		}
@@ -115,20 +116,19 @@ func main() {
 				log.Printf("[WARNING]: Current mining fees (%d) are higher than maximum fees allowed (%d)", order.FeesvByte, *maxFee)
 				continue
 			}
+			//Check first if there is a pending channel oppening with the same amount to the same peer (from a previous error...)
 			chanPoint, err := lnd.OpenChannel(int(order.ChanSize), order.FeesvByte, order.Peer)
 			if err != nil {
-				log.Fatalf("[ERROR]: Could not open channel for order %s. %v", order.Id, err)
+				log.Printf("[WARNING]: Could not open channel for order %s. %v", order.Id, err)
 			}
-			chanSplit := strings.Split(chanPoint, ":")
-			if len(chanSplit) != 2 {
-				log.Fatalf("[ERROR]: Wrong chanpoint format %s", chanPoint)
-			}
-			if err := magma.NotifyChannelPoint(chanSplit[0], chanSplit[1]); err != nil {
+
+			if err := magma.NotifyChannelPoint(order.Id, chanPoint); err != nil {
 				log.Fatalf("[ERROR]: Could not notify channel opening on order %s. %v", order.Id, err)
 			}
 			log.Printf("[INFO]: Sucessfully channel notification (%s). Will earn %dsats once it has over 3 confirmations.", chanPoint, int(order.InvoiceAmt))
 		}
 
+		//If the program flow hits a continue it loops forever even if the period is 0 since we don't reach here unless no errors
 		if *period <= 0 {
 			break
 		}

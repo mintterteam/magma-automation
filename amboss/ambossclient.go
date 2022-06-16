@@ -140,14 +140,14 @@ func (c *Client) RejectOrder(id string) error {
 	return nil
 }
 
-func (c *Client) NotifyChannelPoint(txid, txindex string) error {
+func (c *Client) NotifyChannelPoint(orderId, txPoint string) error {
 	var m struct {
 		SellerAddTransaction bool `graphql:"sellerAddTransaction(id: $sellerAddTransactionId, transaction: $transaction)"`
 	}
 
 	variables := map[string]interface{}{
-		"sellerAddTransactionId": graphql.String(txid),
-		"transaction":            graphql.String(txindex),
+		"sellerAddTransactionId": graphql.String(orderId),
+		"transaction":            graphql.String(txPoint),
 	}
 	err := c.magmaclient.Mutate(context.Background(), &m, variables)
 	if err != nil {
