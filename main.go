@@ -126,7 +126,7 @@ func main() {
 				reject(*rejectOnFailure, magma, order.Id)
 				continue
 			}
-			log.Printf("[INFO]: Accepted order . %v", err)
+			log.Printf("[INFO]: Accepted order %s", order.Id)
 		}
 		order, err = magma.GetWaiting2Open()
 		if err != nil {
@@ -145,7 +145,8 @@ func main() {
 			if err != nil {
 				log.Printf("[WARNING]: Could not open channel for order %s. %v", order.Id, err)
 			}
-
+			log.Printf("[INFO]: Open new channel %s", order.ChanPoint)
+			time.Sleep(5 * time.Second) //Give some seconds so magma can see the tx in the mempool
 			if err := magma.NotifyChannelPoint(order.Id, order.ChanPoint); err != nil {
 				log.Fatalf("[ERROR]: Could not notify channel opening on order %s. %v", order.Id, err)
 			}
