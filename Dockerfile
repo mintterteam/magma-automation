@@ -11,5 +11,5 @@ RUN go mod tidy
 RUN go install
 
 FROM alpine:latest
-COPY --from=builder /go/bin/magma-automation /usr/local/bin/magma-automation
-CMD ["/usr/local/bin/magma-automation"]
+COPY --from=builder /go/bin/magma-automation /usr/local/bin/magma
+CMD ["/usr/local/bin/magma"]
