@@ -41,7 +41,7 @@ func main() {
 		log.Fatalf("[ERROR]: Could not read provided token file %v", err)
 	}
 
-	magma := amboss.NewClient(*apiEndpoint, strings.TrimSuffix(string(token), "\n"), *minFee, *maxFee)
+	magma := amboss.NewClient(*apiEndpoint, strings.TrimSuffix(string(strings.TrimSuffix(string(token), "\n")), "\n"), *minFee, *maxFee)
 	alias, err := magma.GetAlias(info.IdentityPubkey)
 	if err != nil {
 		log.Fatalf("[ERROR]: Initial amboss healthcheck failed. %v", err)
