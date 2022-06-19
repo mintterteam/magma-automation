@@ -145,10 +145,9 @@ func main() {
 			if err != nil {
 				log.Printf("[WARNING]: Could not open channel for order %s. %v", order.Id, err)
 			}
-			log.Printf("[INFO]: Open new channel %s", order.ChanPoint)
-			time.Sleep(5 * time.Second) //Give some seconds so magma can see the tx in the mempool
+			time.Sleep(15 * time.Second) //Give some seconds so magma can see the tx in the mempool
 			if err := magma.NotifyChannelPoint(order.Id, order.ChanPoint); err != nil {
-				log.Fatalf("[ERROR]: Could not notify channel opening on order %s. %v", order.Id, err)
+				log.Fatalf("[ERROR]: Could not notify channel opening %s on order %s. %v", order.ChanPoint, order.Id, err)
 			}
 			log.Printf("[INFO]: Sucessfully channel notification (%s). Will earn %dsats once it has over 3 confirmations.", order.ChanPoint, int(order.InvoiceAmt))
 		}
