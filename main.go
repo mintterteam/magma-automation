@@ -104,7 +104,7 @@ func main() {
 				reject(*rejectOnFailure, magma, order.Id)
 				continue
 			}
-
+			log.Printf("[INFO]: Connection verified to %s@%s", order.Peer, addr)
 			if funds, err := lnd.AvailableFunds(); err != nil || funds < int(order.ChanSize) {
 				if err != nil {
 					log.Printf("[WARNING]: Could not get funds %v", err)
@@ -144,6 +144,7 @@ func main() {
 			order.ChanPoint, err = lnd.OpenChannel(int(order.ChanSize), order.FeesvByte, order.Peer)
 			if err != nil {
 				log.Printf("[WARNING]: Could not open channel for order %s. %v", order.Id, err)
+				continue
 			}
 			time.Sleep(15 * time.Second) //Give some seconds so magma can see the tx in the mempool
 			if err := magma.NotifyChannelPoint(order.Id, order.ChanPoint); err != nil {
