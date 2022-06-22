@@ -100,7 +100,7 @@ func main() {
 				continue
 			}
 			if err := lnd.Connect(order.Peer, addr); err != nil {
-				log.Printf("[WARNING]: Could not connect to %s@%s", order.Peer, addr)
+				log.Printf("[WARNING]: Could not connect to %s@%s. %v", order.Peer, addr, err)
 				reject(*rejectOnFailure, magma, order.Id)
 				continue
 			}
