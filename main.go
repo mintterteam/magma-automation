@@ -89,10 +89,6 @@ func main() {
 				log.Printf("[WARNING]: Could not get Magma Orders %v", err)
 				continue
 			}
-			if order.FeesvByte > *maxFee {
-				log.Printf("[WARNING]: Current mining fees (%d) are higher than maximum fees alowed (%d)", order.FeesvByte, *maxFee)
-				continue
-			}
 			addr, err := magma.GetNodeAddress(order.Peer)
 			if err != nil {
 				log.Printf("[WARNING]: Could not get node address %v", err)
