@@ -117,6 +117,11 @@ func main() {
 				reject(*rejectOnFailure, magma, order.Id)
 				continue
 			}
+			if order.FeesvByte > (*maxFee)*5 {
+				log.Printf("[INFO]: rejecting order %s because current fees (%d) are more than five times allowed fees", order.Id, order.FeesvByte)
+				reject(true, magma, order.Id)
+				continue
+			}
 			if err := magma.AcceptOrder(order.Id, payreq); err != nil {
 				log.Printf("[WARNING]: Error trying to accept order id %s. %v", order.Id, err)
 				reject(*rejectOnFailure, magma, order.Id)
